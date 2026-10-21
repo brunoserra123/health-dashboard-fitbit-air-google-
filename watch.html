@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Watch</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+    .metric { margin-bottom: 12px; }
+    .label { font-size: 11px; text-transform: uppercase; color: #888; }
+    .val { font-size: 26px; font-weight: bold; }
+    .steps { color: #04d361; }
+    .heart { color: #f75a68; }
+    .sleep { color: #8257e5; }
+    .time { font-size: 10px; color: #555; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="metric">
+    <div class="label">Passos</div>
+    <div class="val steps" id="steps">--</div>
+  </div>
+  <div class="metric">
+    <div class="label">Batimentos</div>
+    <div class="val heart" id="heart">-- bpm</div>
+  </div>
+  <div class="metric">
+    <div class="label">Sono</div>
+    <div class="val sleep" id="sleep">--h --m</div>
+  </div>
+  <div class="time" id="updated">A carregar...</div>
+
+  <script>
+    const token = localStorage.getItem('google_access_token');
+    
+    async function loadData() {
+      if (!token) {
+        document.getElementById('updated').innerText = 'Abra o painel no PC primeiro';
+        return;
+      }
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      
+      try {
+        const res = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            aggregateBy: [
+              { dataTypeName: 'com.google.step_count.delta' },
+              { dataTypeName: 'com.google.heart_rate.bpm' }
+            ],
+            bucketByTime: { durationMillis: 86400000 },
+            startTimeMillis: start,
+            endTimeMillis: now.getTime()
+          })
+        });
+        const d = await res.json();
+        if (d.bucket && d.bucket[0]) {
+          const ds = d.bucket[0].dataset;
+          if (ds[0].point.length > 0) {
+            document.getElementById('steps').innerText = ds[0].point.reduce((a, p) => a + (p.value[0].intVal || 0), 0);
+          }
+          if (ds[1].point.length > 0) {
+            document.getElementById('heart').innerText = Math.round(ds[1].point[ds[1].point.length - 1].value[0].fpVal) + ' bpm';
+          }
+        }
+        document.getElementById('updated').innerText = 'Atualizado ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      } catch (e) {
+        document.getElementById('updated').innerText = 'Erro ao sincronizar';
+      }
+    }
+
+    loadData();
+    setInterval(loadData, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
