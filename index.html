@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Saúde | Fitbit</title>
-  <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
@@ -16,14 +15,13 @@
       --accent-hover: #04d361;
       --border-color: #323238;
       --heart-color: #f75a68;
-      --sleep-color: #8257e5;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     body {
@@ -38,7 +36,7 @@
 
     header {
       width: 100%;
-      max-width: 900px;
+      max-width: 800px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -47,10 +45,7 @@
       padding-bottom: 20px;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-    }
+    h1 { font-size: 1.5rem; }
 
     .btn {
       background-color: var(--accent-color);
@@ -58,15 +53,11 @@
       border: none;
       padding: 10px 18px;
       border-radius: 6px;
-      font-size: 0.95rem;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.2s ease;
     }
 
-    .btn:hover {
-      background-color: var(--accent-hover);
-    }
+    .btn:hover { background-color: var(--accent-hover); }
 
     .btn-secondary {
       background-color: transparent;
@@ -74,16 +65,11 @@
       color: var(--text-muted);
     }
 
-    .btn-secondary:hover {
-      background-color: var(--border-color);
-      color: var(--text-main);
-    }
-
     main {
       width: 100%;
-      max-width: 900px;
+      max-width: 800px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 20px;
     }
 
@@ -94,13 +80,12 @@
       padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .card-title {
       font-size: 0.85rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
       color: var(--text-muted);
     }
 
@@ -112,48 +97,22 @@
     .card-footer {
       font-size: 0.85rem;
       color: var(--text-muted);
-      margin-top: auto;
     }
 
     .val-steps { color: var(--accent-hover); }
     .val-heart { color: var(--heart-color); }
-    .val-sleep { color: var(--sleep-color); }
-
-    #login-banner {
-      width: 100%;
-      max-width: 900px;
-      background-color: var(--card-bg);
-      border: 1px dashed var(--border-color);
-      border-radius: 8px;
-      padding: 40px 20px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    #login-banner p {
-      margin-bottom: 20px;
-      color: var(--text-muted);
-    }
-
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
   <header>
     <h1>Painel de Saúde</h1>
-    <div id="auth-controls">
+    <div>
       <button id="btn-login" class="btn">Conectar Conta Google</button>
       <button id="btn-logout" class="btn btn-secondary hidden">Sair</button>
     </div>
   </header>
-
-  <section id="login-banner">
-    <p>Inicie sessão com a sua conta Google para carregar as métricas da pulseira.</p>
-    <button id="btn-login-hero" class="btn">Ligar ao Google</button>
-  </section>
 
   <main id="dashboard" class="hidden">
     <div class="card">
@@ -163,97 +122,81 @@
     </div>
 
     <div class="card">
+      <div class="card-title">Calorias Gastas</div>
+      <div class="card-value" id="metric-calories">--</div>
+      <div class="card-footer">Estimativa diária</div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Frequência Cardíaca</div>
       <div class="card-value val-heart" id="metric-heart">-- bpm</div>
       <div class="card-footer">Último registo</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Sono (Última Noite)</div>
-      <div class="card-value val-sleep" id="metric-sleep">--h --m</div>
-      <div class="card-footer" id="metric-sleep-sub">Tempo total em descanso</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Calorias Gastas</div>
-      <div class="card-value" id="metric-calories">--</div>
-      <div class="card-footer">Total estimado hoje</div>
     </div>
   </main>
 
   <script>
     const CLIENT_ID = '287121160905-2o87pjjueil1mc9ea2tut6i0mi7i0ljm.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.body.read https://www.googleapis.com/auth/fitness.sleep.read';
+    
+    // Escopos explícitos para atividade e batimentos cardíacos
+    const SCOPES = [
+      'https://www.googleapis.com/auth/fitness.activity.read',
+      'https://www.googleapis.com/auth/fitness.heart_rate.read',
+      'https://www.googleapis.com/auth/fitness.body.read'
+    ].join(' ');
 
     let tokenClient;
     let accessToken = localStorage.getItem('google_access_token');
 
     const btnLogin = document.getElementById('btn-login');
-    const btnLoginHero = document.getElementById('btn-login-hero');
     const btnLogout = document.getElementById('btn-logout');
-    const loginBanner = document.getElementById('login-banner');
     const dashboard = document.getElementById('dashboard');
 
-    function initTokenClient() {
+    function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: (tokenResponse) => {
-          if (tokenResponse.access_token) {
-            accessToken = tokenResponse.access_token;
+        callback: (resp) => {
+          if (resp.access_token) {
+            accessToken = resp.access_token;
             localStorage.setItem('google_access_token', accessToken);
             showDashboard();
-            fetchHealthData();
+            fetchData();
           }
-        },
+        }
       });
     }
 
     window.onload = () => {
-      initTokenClient();
+      initClient();
       if (accessToken) {
         showDashboard();
-        fetchHealthData();
+        fetchData();
       }
     };
 
-    function handleAuth() {
-      if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      }
-    }
-
-    btnLogin.onclick = handleAuth;
-    btnLoginHero.onclick = handleAuth;
+    btnLogin.onclick = () => {
+      // Força a janela de consentimento a reaparecer para aprovar os novos escopos
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    };
 
     btnLogout.onclick = () => {
-      accessToken = null;
       localStorage.removeItem('google_access_token');
-      showLogin();
+      location.reload();
     };
 
     function showDashboard() {
-      loginBanner.classList.add('hidden');
       dashboard.classList.remove('hidden');
       btnLogin.classList.add('hidden');
       btnLogout.classList.remove('hidden');
     }
 
-    function showLogin() {
-      loginBanner.classList.remove('hidden');
-      dashboard.classList.add('hidden');
-      btnLogin.classList.remove('hidden');
-      btnLogout.classList.add('hidden');
-    }
-
-    async function fetchHealthData() {
+    async function fetchData() {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const endOfDay = now.getTime();
 
-      // Chamada agregada para passos e calorias
       try {
-        const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+        const res = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -271,46 +214,41 @@
           })
         });
 
-        if (response.status === 401) {
-          // Token expirado
+        if (res.status === 401 || res.status === 403) {
           localStorage.removeItem('google_access_token');
-          showLogin();
+          btnLogin.classList.remove('hidden');
+          btnLogout.classList.add('hidden');
           return;
         }
 
-        const data = await response.json();
-        processDailyData(data);
+        const data = await res.json();
+        
+        if (data.bucket && data.bucket[0]) {
+          const ds = data.bucket[0].dataset;
+
+          // Passos
+          let steps = 0;
+          if (ds[0].point.length > 0) {
+            steps = ds[0].point.reduce((acc, p) => acc + (p.value[0].intVal || 0), 0);
+          }
+          document.getElementById('metric-steps').innerText = steps.toLocaleString('pt-PT');
+          document.getElementById('metric-steps-sub').innerText = `${Math.round((steps / 10000) * 100)}% da meta diária`;
+
+          // Calorias
+          let cals = 0;
+          if (ds[1].point.length > 0) {
+            cals = ds[1].point.reduce((acc, p) => acc + (p.value[0].fpVal || 0), 0);
+          }
+          document.getElementById('metric-calories').innerText = `${Math.round(cals)} kcal`;
+
+          // Batimentos
+          if (ds[2].point.length > 0) {
+            const lastBpm = ds[2].point[ds[2].point.length - 1].value[0].fpVal;
+            document.getElementById('metric-heart').innerText = `${Math.round(lastBpm)} bpm`;
+          }
+        }
       } catch (err) {
-        console.error('Erro ao consultar métricas:', err);
-      }
-    }
-
-    function processDailyData(data) {
-      if (!data.bucket || data.bucket.length === 0) return;
-
-      const datasets = data.bucket[0].dataset;
-
-      // Passos
-      let totalSteps = 0;
-      if (datasets[0].point.length > 0) {
-        totalSteps = datasets[0].point.reduce((acc, pt) => acc + (pt.value[0].intVal || 0), 0);
-      }
-      document.getElementById('metric-steps').innerText = totalSteps.toLocaleString('pt-PT');
-      document.getElementById('metric-steps-sub').innerText = `${Math.round((totalSteps / 10000) * 100)}% da meta diária`;
-
-      // Calorias
-      let totalCalories = 0;
-      if (datasets[1].point.length > 0) {
-        totalCalories = datasets[1].point.reduce((acc, pt) => acc + (pt.value[0].fpVal || 0), 0);
-      }
-      document.getElementById('metric-calories').innerText = `${Math.round(totalCalories)} kcal`;
-
-      // Batimentos (Média/Último ponto)
-      if (datasets[2].point.length > 0) {
-        const lastHeartRate = datasets[2].point[datasets[2].point.length - 1].value[0].fpVal;
-        document.getElementById('metric-heart').innerText = `${Math.round(lastHeartRate)} bpm`;
-      } else {
-        document.getElementById('metric-heart').innerText = '-- bpm';
+        console.error('Erro ao recolher dados:', err);
       }
     }
   </script>
