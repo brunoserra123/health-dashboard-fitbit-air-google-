@@ -579,33 +579,68 @@
       }
     }
   
-    // Leitura em tempo real do nível de bateria
-    function initBattery() {
-      if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-          function update() {
-            const level = Math.round(battery.level * 100);
-            const el = document.getElementById('metric-battery');
-            const sub = document.getElementById('metric-battery-sub');
-            if (el) {
-              el.innerText = `${level}%` + (battery.charging ? ' ⚡' : '');
-              if (level > 40) el.style.color = '#04d361';
-              else if (level > 20) el.style.color = '#ffaa00';
-              else el.style.color = '#f75a68';
-            }
-            if (sub) {
-              sub.innerText = battery.charging ? 'Conectado ao carregador' : 'Consumo normal da bateria';
-            }
-          }
-          update();
-          battery.addEventListener('levelchange', update);
-          battery.addEventListener('chargingchange', update);
-        }).catch(() => {});
-      } else {
+    // Leitura inteligente de bateria (Servidor Local, Fitbit Cloud ou Navegador)
+    async function initBattery() {
+      let batteryFound = false;
+
+      function renderBattery(level, statusText, isCharging) {
+        batteryFound = true;
         const el = document.getElementById('metric-battery');
         const sub = document.getElementById('metric-battery-sub');
-        if (el) el.innerText = 'N/D';
-        if (sub) sub.innerText = 'Leitura não suportada neste browser';
+        if (el) {
+          el.innerText = `${level}%` + (isCharging ? ' ⚡' : '');
+          el.style.fontSize = '2.2rem';
+          if (level > 40) el.style.color = '#04d361';
+          else if (level > 20) el.style.color = '#ffaa00';
+          else el.style.color = '#f75a68';
+        }
+        if (sub) {
+          sub.innerText = statusText || (isCharging ? 'Conectado ao carregador' : 'Consumo normal da bateria');
+        }
+      }
+
+      // 1. Tentar ler do Servidor Local do Relógio / Tracker (http://localhost:8080/api/stats)
+      try {
+        const localRes = await fetch('http://localhost:8080/api/stats', { mode: 'cors' });
+        if (localRes.ok) {
+          const stats = await localRes.json();
+          if (stats.battery !== undefined) {
+            renderBattery(stats.battery, stats.batteryStatus || 'Dispositivo sincronizado', false);
+            return;
+          }
+        }
+      } catch (e) {}
+
+      // 2. Se houver token da Fitbit, tentar consultar nível do relógio na nuvem
+      if (accessToken) {
+        try {
+          const devRes = await fetch('https://api.fitbit.com/1/user/-/devices.json', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+          if (devRes.ok) {
+            const devs = await devRes.json();
+            if (devs && devs.length > 0) {
+              const dev = devs[0];
+              const lvl = dev.batteryLevel !== undefined ? dev.batteryLevel : (dev.battery === 'High' ? 90 : 50);
+              renderBattery(lvl, `Pulseira: ${dev.deviceVersion || 'Fitbit'} (${dev.battery || 'OK'})`, false);
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 3. Se não encontrou o relógio conectado ainda
+      if (!batteryFound) {
+        const el = document.getElementById('metric-battery');
+        const sub = document.getElementById('metric-battery-sub');
+        if (el) {
+          el.innerText = '--%';
+          el.style.fontSize = '2.2rem';
+          el.style.color = '#38bdf8';
+        }
+        if (sub) {
+          sub.innerText = 'Sincronize o relógio no aplicativo para ler o nível do braço';
+        }
       }
     }
     initBattery();
