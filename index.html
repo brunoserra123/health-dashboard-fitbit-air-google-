@@ -15,6 +15,7 @@
       --accent-hover: #04d361;
       --border-color: #323238;
       --heart-color: #f75a68;
+      --sleep-color: #8257e5;
     }
 
     * {
@@ -36,25 +37,37 @@
 
     header {
       width: 100%;
-      max-width: 800px;
+      max-width: 850px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 20px;
     }
 
     h1 { font-size: 1.5rem; }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
     .btn {
       background-color: var(--accent-color);
       color: #fff;
       border: none;
-      padding: 10px 18px;
+      padding: 9px 16px;
       border-radius: 6px;
       font-weight: 500;
       cursor: pointer;
+      transition: background 0.2s ease;
     }
 
     .btn:hover { background-color: var(--accent-hover); }
@@ -65,11 +78,16 @@
       color: var(--text-muted);
     }
 
+    .btn-secondary:hover {
+      background-color: var(--border-color);
+      color: var(--text-main);
+    }
+
     main {
       width: 100%;
-      max-width: 800px;
+      max-width: 850px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 20px;
     }
 
@@ -86,6 +104,7 @@
     .card-title {
       font-size: 0.85rem;
       text-transform: uppercase;
+      letter-spacing: 0.05em;
       color: var(--text-muted);
     }
 
@@ -101,6 +120,23 @@
 
     .val-steps { color: var(--accent-hover); }
     .val-heart { color: var(--heart-color); }
+    .val-sleep { color: var(--sleep-color); }
+
+    #login-banner {
+      width: 100%;
+      max-width: 850px;
+      background-color: var(--card-bg);
+      border: 1px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    #login-banner p {
+      margin-bottom: 20px;
+      color: var(--text-muted);
+    }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -108,11 +144,17 @@
 
   <header>
     <h1>Painel de Saúde</h1>
-    <div>
+    <div class="header-actions">
+      <span id="last-updated" class="status-text hidden">A aguardar sincronização...</span>
       <button id="btn-login" class="btn">Conectar Conta Google</button>
       <button id="btn-logout" class="btn btn-secondary hidden">Sair</button>
     </div>
   </header>
+
+  <section id="login-banner">
+    <p>Inicie sessão com a sua conta Google para carregar as métricas da pulseira.</p>
+    <button id="btn-login-hero" class="btn">Conectar Conta Google</button>
+  </section>
 
   <main id="dashboard" class="hidden">
     <div class="card">
@@ -122,9 +164,9 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Calorias Gastas</div>
-      <div class="card-value" id="metric-calories">--</div>
-      <div class="card-footer">Estimativa diária</div>
+      <div class="card-title">Sono (Última Noite)</div>
+      <div class="card-value val-sleep" id="metric-sleep">--h --m</div>
+      <div class="card-footer" id="metric-sleep-sub">Tempo em descanso</div>
     </div>
 
     <div class="card">
@@ -132,24 +174,35 @@
       <div class="card-value val-heart" id="metric-heart">-- bpm</div>
       <div class="card-footer">Último registo</div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Calorias Gastas</div>
+      <div class="card-value" id="metric-calories">--</div>
+      <div class="card-footer">Estimativa total diária</div>
+    </div>
   </main>
 
   <script>
     const CLIENT_ID = '287121160905-2o87pjjueil1mc9ea2tut6i0mi7i0ljm.apps.googleusercontent.com';
     
-    // Escopos explícitos para atividade e batimentos cardíacos
+    // Escopos de passos, sono e frequência cardíaca
     const SCOPES = [
       'https://www.googleapis.com/auth/fitness.activity.read',
       'https://www.googleapis.com/auth/fitness.heart_rate.read',
+      'https://www.googleapis.com/auth/fitness.sleep.read',
       'https://www.googleapis.com/auth/fitness.body.read'
     ].join(' ');
 
     let tokenClient;
     let accessToken = localStorage.getItem('google_access_token');
+    let autoRefreshTimer = null;
 
     const btnLogin = document.getElementById('btn-login');
+    const btnLoginHero = document.getElementById('btn-login-hero');
     const btnLogout = document.getElementById('btn-logout');
+    const loginBanner = document.getElementById('login-banner');
     const dashboard = document.getElementById('dashboard');
+    const lastUpdated = document.getElementById('last-updated');
 
     function initClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
@@ -160,7 +213,8 @@
             accessToken = resp.access_token;
             localStorage.setItem('google_access_token', accessToken);
             showDashboard();
-            fetchData();
+            fetchAllData();
+            startAutoRefresh();
           }
         }
       });
@@ -170,27 +224,57 @@
       initClient();
       if (accessToken) {
         showDashboard();
-        fetchData();
+        fetchAllData();
+        startAutoRefresh();
       }
     };
 
-    btnLogin.onclick = () => {
-      // Força a janela de consentimento a reaparecer para aprovar os novos escopos
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    };
+    function handleAuth() {
+      if (tokenClient) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      }
+    }
+
+    btnLogin.onclick = handleAuth;
+    btnLoginHero.onclick = handleAuth;
 
     btnLogout.onclick = () => {
+      stopAutoRefresh();
       localStorage.removeItem('google_access_token');
       location.reload();
     };
 
     function showDashboard() {
+      loginBanner.classList.add('hidden');
       dashboard.classList.remove('hidden');
       btnLogin.classList.add('hidden');
       btnLogout.classList.remove('hidden');
+      lastUpdated.classList.remove('hidden');
     }
 
-    async function fetchData() {
+    // Atualização automática a cada 10 minutos (600.000 ms)
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      autoRefreshTimer = setInterval(() => {
+        fetchAllData();
+      }, 10 * 60 * 1000);
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+    }
+
+    async function fetchAllData() {
+      await Promise.all([fetchDailyMetrics(), fetchSleepData()]);
+      const now = new Date();
+      lastUpdated.innerText = `Atualizado às ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    // Consulta de Passos, Calorias e Batimentos Cardíacos
+    async function fetchDailyMetrics() {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const endOfDay = now.getTime();
@@ -216,8 +300,8 @@
 
         if (res.status === 401 || res.status === 403) {
           localStorage.removeItem('google_access_token');
-          btnLogin.classList.remove('hidden');
-          btnLogout.classList.add('hidden');
+          stopAutoRefresh();
+          location.reload();
           return;
         }
 
@@ -232,25 +316,4 @@
             steps = ds[0].point.reduce((acc, p) => acc + (p.value[0].intVal || 0), 0);
           }
           document.getElementById('metric-steps').innerText = steps.toLocaleString('pt-PT');
-          document.getElementById('metric-steps-sub').innerText = `${Math.round((steps / 10000) * 100)}% da meta diária`;
-
-          // Calorias
-          let cals = 0;
-          if (ds[1].point.length > 0) {
-            cals = ds[1].point.reduce((acc, p) => acc + (p.value[0].fpVal || 0), 0);
-          }
-          document.getElementById('metric-calories').innerText = `${Math.round(cals)} kcal`;
-
-          // Batimentos
-          if (ds[2].point.length > 0) {
-            const lastBpm = ds[2].point[ds[2].point.length - 1].value[0].fpVal;
-            document.getElementById('metric-heart').innerText = `${Math.round(lastBpm)} bpm`;
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao recolher dados:', err);
-      }
-    }
-  </script>
-</body>
-</html>
+          document.getElementById('metric-steps-sub').innerText
