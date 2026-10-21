@@ -220,6 +220,13 @@
       <div class="card-footer">Atividade física hoje</div>
     </div>
 
+        <!-- Bateria do Dispositivo -->
+    <div class="card">
+      <div class="card-title">Bateria</div>
+      <div class="card-value val-battery" id="metric-battery" style="color: #38bdf8;">--%</div>
+      <div class="card-footer" id="metric-battery-sub">A verificar nível...</div>
+    </div>
+
     <!-- Detalhamento Completo do Sono -->
     <div class="card card-large">
       <div class="card-title">Sono (Última Noite)</div>
@@ -277,6 +284,7 @@
               localStorage.setItem('google_access_token', accessToken);
               showDashboard();
               fetchAllData();
+      initBattery();
               startAutoRefresh();
             }
           }
@@ -319,6 +327,7 @@
       if (accessToken) {
         showDashboard();
         fetchAllData();
+      initBattery();
         startAutoRefresh();
       }
     });
@@ -335,6 +344,7 @@
       stopAutoRefresh();
       autoRefreshTimer = setInterval(() => {
         fetchAllData();
+      initBattery();
       }, 10 * 60 * 1000);
     }
 
@@ -500,6 +510,36 @@
         console.error('Estágios de sono indisponíveis:', e);
       }
     }
+  
+    // Leitura em tempo real do nível de bateria
+    function initBattery() {
+      if ('getBattery' in navigator) {
+        navigator.getBattery().then(battery => {
+            const el = document.getElementById('metric-battery');
+            const sub = document.getElementById('metric-battery-sub');
+            if (el) {
+              el.innerText = `${level}%` + (battery.charging ? ' ⚡' : '');
+              if (level > 40) el.style.color = '#04d361';
+              else if (level > 20) el.style.color = '#ffaa00';
+              else el.style.color = '#f75a68';
+            }
+            if (sub) {
+              sub.innerText = battery.charging ? 'Conectado ao carregador' : 'Consumo normal da bateria';
+            }
+          }
+          update();
+          battery.addEventListener('levelchange', update);
+          battery.addEventListener('chargingchange', update);
+        }).catch(() => {});
+      } else {
+        const el = document.getElementById('metric-battery');
+        const sub = document.getElementById('metric-battery-sub');
+        if (el) el.innerText = 'N/D';
+        if (sub) sub.innerText = 'Leitura não suportada neste browser';
+      }
+    }
+    initBattery();
+
   </script>
 </body>
 </html>
