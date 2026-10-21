@@ -180,8 +180,31 @@
   </header>
 
   <section id="login-banner">
+    <div id="file-protocol-warning" class="hidden" style="background: rgba(247, 90, 104, 0.15); border: 1px solid #f75a68; border-radius: 8px; padding: 14px; margin-bottom: 20px; text-align: left; font-size: 0.9rem;">
+      <strong>⚠️ Atenção (Arquivo Local Detectado):</strong><br>
+      Você abriu este arquivo diretamente da pasta do computador (<code>file://</code>). A Google bloqueia pop-ups de login em arquivos locais por segurança.<br><br>
+      Para o login funcionar perfeitamente:
+      <ul style="margin-left: 20px; margin-top: 6px;">
+        <li>Abra pelo site publicado: <a href="https://brunoserra123.github.io/health-dashboard-fitbit-air-google-/" target="_blank" style="color: #38bdf8; font-weight: bold;">Abrir no GitHub Pages</a></li>
+        <li>Ou abra pelo seu servidor local: <a href="http://localhost:8080/github_pages_com_bateria/index.html" target="_blank" style="color: #38bdf8; font-weight: bold;">http://localhost:8080/github_pages_com_bateria/index.html</a></li>
+      </ul>
+    </div>
+
+    <div id="popup-blocked-warning" class="hidden" style="background: rgba(255, 170, 0, 0.15); border: 1px solid #ffaa00; border-radius: 8px; padding: 14px; margin-bottom: 20px; text-align: left; font-size: 0.9rem;">
+      <strong>⚠️ Janela Bloqueada pelo Navegador:</strong><br>
+      O navegador bloqueou o pop-up de login da Google. Procure o ícone de <b>Pop-up bloqueado</b> no canto direito da barra de endereços do seu navegador (URL) e marque <b>"Sempre permitir pop-ups deste site"</b>.
+    </div>
+
     <p>Inicie sessão com a sua conta Google para carregar as métricas da pulseira.</p>
     <button id="btn-login-hero" class="btn">Conectar Conta Google</button>
+
+    <div style="margin-top: 25px; border-top: 1px dashed var(--border-color); padding-top: 18px;">
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">Ou cole o Token de Acesso da Google Health API manualmente:</p>
+      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <input type="password" id="input-manual-token" placeholder="Cole o token do Google aqui..." style="padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border-color); background: #121214; color: #fff; width: 280px;">
+        <button id="btn-save-manual-token" class="btn btn-secondary">Entrar com Token</button>
+      </div>
+    </div>
   </section>
 
   <main id="dashboard" class="hidden">
@@ -287,6 +310,16 @@
       initBattery();
               startAutoRefresh();
             }
+          },
+          error_callback: (error) => {
+            console.error('Erro ao abrir popup Google:', error);
+            const popupWarning = document.getElementById('popup-blocked-warning');
+            if (error && error.type === 'popup_blocked') {
+              if (popupWarning) popupWarning.classList.remove('hidden');
+              alert('⚠️ Janela de login bloqueada pelo navegador!\n\nProcure o ícone de bloqueador de pop-ups no canto direito da barra de navegação e selecione "Sempre permitir pop-ups".');
+            } else if (error && error.type !== 'popup_closed') {
+              alert('Aviso Google OAuth: ' + (error.message || error.type || JSON.stringify(error)));
+            }
           }
         });
         return true;
@@ -302,19 +335,49 @@
     }
 
     function triggerAuth() {
+      if (window.location.protocol === 'file:') {
+        const fileWarn = document.getElementById('file-protocol-warning');
+        if (fileWarn) fileWarn.classList.remove('hidden');
+        alert('⚠️ Atenção: O Google bloqueia o login ao abrir o arquivo direto do computador (file://).\n\nPara o login funcionar, use:\n1. O site do GitHub Pages: https://brunoserra123.github.io/health-dashboard-fitbit-air-google-/\n2. Ou o servidor local: http://localhost:8080/github_pages_com_bateria/index.html\n3. Ou cole o token de acesso no campo abaixo.');
+        return;
+      }
+
       if (!tokenClient) {
         setupClient();
       }
 
       if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+        try {
+          tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch (err) {
+          console.error('Erro no requestAccessToken:', err);
+          alert('Erro ao tentar abrir login: ' + err.message);
+        }
       } else {
-        alert('A biblioteca de autenticação da Google ainda não foi carregada. Verifique se possui bloqueadores de anúncio (AdBlock) ativos nesta página e tente recarregar.');
+        alert('A biblioteca de autenticação da Google ainda não foi carregada.\n\nVerifique sua conexão ou se possui bloqueadores de anúncio (AdBlock/Brave Shields) ativos nesta página.');
       }
     }
 
     btnLogin.addEventListener('click', triggerAuth);
     btnLoginHero.addEventListener('click', triggerAuth);
+
+    const btnSaveManualToken = document.getElementById('btn-save-manual-token');
+    if (btnSaveManualToken) {
+      btnSaveManualToken.addEventListener('click', () => {
+        const input = document.getElementById('input-manual-token');
+        const tokenVal = input ? input.value.trim() : '';
+        if (tokenVal) {
+          accessToken = tokenVal;
+          localStorage.setItem('google_access_token', accessToken);
+          showDashboard();
+          fetchAllData();
+          initBattery();
+          startAutoRefresh();
+        } else {
+          alert('Por favor, cole um token válido.');
+        }
+      });
+    }
 
     btnLogout.addEventListener('click', () => {
       stopAutoRefresh();
@@ -323,11 +386,16 @@
     });
 
     window.addEventListener('DOMContentLoaded', () => {
+      if (window.location.protocol === 'file:') {
+        const fileWarn = document.getElementById('file-protocol-warning');
+        if (fileWarn) fileWarn.classList.remove('hidden');
+      }
+
       setupClient();
       if (accessToken) {
         showDashboard();
         fetchAllData();
-      initBattery();
+        initBattery();
         startAutoRefresh();
       }
     });
