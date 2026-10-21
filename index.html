@@ -16,6 +16,7 @@
       --border-color: #323238;
       --heart-color: #f75a68;
       --sleep-color: #8257e5;
+      --dist-color: #38bdf8;
     }
 
     * {
@@ -37,7 +38,7 @@
 
     header {
       width: 100%;
-      max-width: 850px;
+      max-width: 900px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -85,9 +86,9 @@
 
     main {
       width: 100%;
-      max-width: 850px;
+      max-width: 900px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 20px;
     }
 
@@ -99,6 +100,10 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+    }
+
+    .card-large {
+      grid-column: 1 / -1;
     }
 
     .card-title {
@@ -118,13 +123,29 @@
       color: var(--text-muted);
     }
 
+    .sleep-breakdown {
+      display: flex;
+      gap: 15px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sleep-chip {
+      background: #19181f;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+
     .val-steps { color: var(--accent-hover); }
     .val-heart { color: var(--heart-color); }
     .val-sleep { color: var(--sleep-color); }
+    .val-dist { color: var(--dist-color); }
 
     #login-banner {
       width: 100%;
-      max-width: 850px;
+      max-width: 900px;
       background-color: var(--card-bg);
       border: 1px dashed var(--border-color);
       border-radius: 8px;
@@ -157,163 +178,43 @@
   </section>
 
   <main id="dashboard" class="hidden">
+    <!-- Passos -->
     <div class="card">
       <div class="card-title">Passos Hoje</div>
       <div class="card-value val-steps" id="metric-steps">--</div>
       <div class="card-footer" id="metric-steps-sub">A carregar...</div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Sono (Última Noite)</div>
-      <div class="card-value val-sleep" id="metric-sleep">--h --m</div>
-      <div class="card-footer" id="metric-sleep-sub">Tempo em descanso</div>
-    </div>
-
+    <!-- Frequência Cardíaca -->
     <div class="card">
       <div class="card-title">Frequência Cardíaca</div>
       <div class="card-value val-heart" id="metric-heart">-- bpm</div>
-      <div class="card-footer">Último registo</div>
+      <div class="card-footer" id="metric-heart-sub">Último registo</div>
     </div>
 
+    <!-- Calorias Gastas -->
     <div class="card">
       <div class="card-title">Calorias Gastas</div>
       <div class="card-value" id="metric-calories">--</div>
       <div class="card-footer">Estimativa total diária</div>
     </div>
-  </main>
 
-  <script>
-    const CLIENT_ID = '287121160905-2o87pjjueil1mc9ea2tut6i0mi7i0ljm.apps.googleusercontent.com';
-    
-    // Escopos de passos, sono e frequência cardíaca
-    const SCOPES = [
-      'https://www.googleapis.com/auth/fitness.activity.read',
-      'https://www.googleapis.com/auth/fitness.heart_rate.read',
-      'https://www.googleapis.com/auth/fitness.sleep.read',
-      'https://www.googleapis.com/auth/fitness.body.read'
-    ].join(' ');
+    <!-- Distância Percorrida -->
+    <div class="card">
+      <div class="card-title">Distância Hoje</div>
+      <div class="card-value val-dist" id="metric-distance">-- km</div>
+      <div class="card-footer">Total em deslocamento</div>
+    </div>
 
-    let tokenClient;
-    let accessToken = localStorage.getItem('google_access_token');
-    let autoRefreshTimer = null;
+    <!-- Minutos Ativos -->
+    <div class="card">
+      <div class="card-title">Tempo em Movimento</div>
+      <div class="card-value" id="metric-active-time">-- min</div>
+      <div class="card-footer">Atividade física hoje</div>
+    </div>
 
-    const btnLogin = document.getElementById('btn-login');
-    const btnLoginHero = document.getElementById('btn-login-hero');
-    const btnLogout = document.getElementById('btn-logout');
-    const loginBanner = document.getElementById('login-banner');
-    const dashboard = document.getElementById('dashboard');
-    const lastUpdated = document.getElementById('last-updated');
-
-    function initClient() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (resp) => {
-          if (resp.access_token) {
-            accessToken = resp.access_token;
-            localStorage.setItem('google_access_token', accessToken);
-            showDashboard();
-            fetchAllData();
-            startAutoRefresh();
-          }
-        }
-      });
-    }
-
-    window.onload = () => {
-      initClient();
-      if (accessToken) {
-        showDashboard();
-        fetchAllData();
-        startAutoRefresh();
-      }
-    };
-
-    function handleAuth() {
-      if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      }
-    }
-
-    btnLogin.onclick = handleAuth;
-    btnLoginHero.onclick = handleAuth;
-
-    btnLogout.onclick = () => {
-      stopAutoRefresh();
-      localStorage.removeItem('google_access_token');
-      location.reload();
-    };
-
-    function showDashboard() {
-      loginBanner.classList.add('hidden');
-      dashboard.classList.remove('hidden');
-      btnLogin.classList.add('hidden');
-      btnLogout.classList.remove('hidden');
-      lastUpdated.classList.remove('hidden');
-    }
-
-    // Atualização automática a cada 10 minutos (600.000 ms)
-    function startAutoRefresh() {
-      stopAutoRefresh();
-      autoRefreshTimer = setInterval(() => {
-        fetchAllData();
-      }, 10 * 60 * 1000);
-    }
-
-    function stopAutoRefresh() {
-      if (autoRefreshTimer) {
-        clearInterval(autoRefreshTimer);
-        autoRefreshTimer = null;
-      }
-    }
-
-    async function fetchAllData() {
-      await Promise.all([fetchDailyMetrics(), fetchSleepData()]);
-      const now = new Date();
-      lastUpdated.innerText = `Atualizado às ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-
-    // Consulta de Passos, Calorias e Batimentos Cardíacos
-    async function fetchDailyMetrics() {
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const endOfDay = now.getTime();
-
-      try {
-        const res = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            aggregateBy: [
-              { dataTypeName: 'com.google.step_count.delta' },
-              { dataTypeName: 'com.google.calories.expended' },
-              { dataTypeName: 'com.google.heart_rate.bpm' }
-            ],
-            bucketByTime: { durationMillis: 86400000 },
-            startTimeMillis: startOfDay,
-            endTimeMillis: endOfDay
-          })
-        });
-
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem('google_access_token');
-          stopAutoRefresh();
-          location.reload();
-          return;
-        }
-
-        const data = await res.json();
-        
-        if (data.bucket && data.bucket[0]) {
-          const ds = data.bucket[0].dataset;
-
-          // Passos
-          let steps = 0;
-          if (ds[0].point.length > 0) {
-            steps = ds[0].point.reduce((acc, p) => acc + (p.value[0].intVal || 0), 0);
-          }
-          document.getElementById('metric-steps').innerText = steps.toLocaleString('pt-PT');
-          document.getElementById('metric-steps-sub').innerText
+    <!-- Detalhamento Completo do Sono -->
+    <div class="card card-large">
+      <div class="card-title">Sono (Última Noite)</div>
+      <div class="card-value val-sleep" id="metric-sleep">--h --m</div>
+      <div class
