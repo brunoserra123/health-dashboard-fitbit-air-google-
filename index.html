@@ -1,208 +1,240 @@
-<script>
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Saúde | Fitbit</title>
+  
+  <!-- Ícone da aba -->
+  <link rel="icon" type="image/jpeg" href="./icon.jpg">
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <style>
+    :root {
+      --bg-color: #121214;
+      --card-bg: #202024;
+      --text-main: #e1e1e6;
+      --text-muted: #a8a8b3;
+      --accent-color: #00875f;
+      --accent-hover: #04d361;
+      --border-color: #323238;
+      --heart-color: #f75a68;
+      --sleep-color: #8257e5;
+      --dist-color: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 20px;
+    }
+
+    h1 { font-size: 1.5rem; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .btn {
+      background-color: var(--accent-color);
+      color: #fff;
+      border: none;
+      padding: 9px 16px;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn:hover { background-color: var(--accent-hover); }
+
+    .btn-secondary {
+      background-color: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--border-color);
+      color: var(--text-main);
+    }
+
+    main {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-large {
+      grid-column: 1 / -1;
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .card-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+    }
+
+    .card-footer {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .sleep-breakdown {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sleep-chip {
+      background: #19181f;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+    }
+
+    .val-steps { color: var(--accent-hover); }
+    .val-heart { color: var(--heart-color); }
+    .val-sleep { color: var(--sleep-color); }
+    .val-dist { color: var(--dist-color); }
+
+    #login-banner {
+      width: 100%;
+      max-width: 900px;
+      background-color: var(--card-bg);
+      border: 1px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    #login-banner p {
+      margin-bottom: 20px;
+      color: var(--text-muted);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Painel de Saúde</h1>
+    <div class="header-actions">
+      <span id="last-updated" class="status-text hidden">A aguardar sincronização...</span>
+      <button id="btn-login" class="btn">Conectar Conta Google</button>
+      <button id="btn-logout" class="btn btn-secondary hidden">Sair</button>
+    </div>
+  </header>
+
+  <section id="login-banner">
+    <p>Inicie sessão com a sua conta Google para carregar as métricas da pulseira.</p>
+    <button id="btn-login-hero" class="btn">Conectar Conta Google</button>
+  </section>
+
+  <main id="dashboard" class="hidden">
+    <!-- Passos -->
+    <div class="card">
+      <div class="card-title">Passos Hoje</div>
+      <div class="card-value val-steps" id="metric-steps">--</div>
+      <div class="card-footer" id="metric-steps-sub">A carregar...</div>
+    </div>
+
+    <!-- Frequência Cardíaca -->
+    <div class="card">
+      <div class="card-title">Frequência Cardíaca</div>
+      <div class="card-value val-heart" id="metric-heart">-- bpm</div>
+      <div class="card-footer">Último registo</div>
+    </div>
+
+    <!-- Calorias Gastas -->
+    <div class="card">
+      <div class="card-title">Calorias Gastas</div>
+      <div class="card-value" id="metric-calories">--</div>
+      <div class="card-footer">Estimativa total diária</div>
+    </div>
+
+    <!-- Distância Percorrida -->
+    <div class="card">
+      <div class="card-title">Distância Hoje</div>
+      <div class="card-value val-dist" id="metric-distance">-- km</div>
+      <div class="card-footer">Total em deslocamento</div>
+    </div>
+
+    <!-- Tempo em Movimento -->
+    <div class="card">
+      <div class="card-title">Tempo em Movimento</div>
+      <div class="card-value" id="metric-active-time">-- min</div>
+      <div class="card-footer">Atividade física hoje</div>
+    </div>
+
+    <!-- Detalhamento Completo do Sono -->
+    <div class="card card-large">
+      <div class="card-title">Sono (Última Noite)</div>
+      <div class="card-value val-sleep" id="metric-sleep">--h --m</div>
+      <div class="card-footer" id="metric-sleep-times">Horário: -- às --</div>
+      
+      <div class="sleep-breakdown" id="sleep-stages">
+        <div class="sleep-chip" id="chip-deep">Profundo: --m</div>
+        <div class="sleep-chip" id="chip-rem">REM: --m</div>
+        <div class="sleep-chip" id="chip-light">Leve: --m</div>
+        <div class="sleep-chip" id="chip-awake">Acordado: --m</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
     const CLIENT_ID = '287121160905-2o87pjjueil1mc9ea2tut6i0mi7i0ljm.apps.googleusercontent.com';
     
-    const SCOPES = [
-      'https://www.googleapis.com/auth/fitness.activity.read',
-      'https://www.googleapis.com/auth/fitness.heart_rate.read',
-      'https://www.googleapis.com/auth/fitness.sleep.read',
-      'https://www.googleapis.com/auth/fitness.body.read',
-      'https://www.googleapis.com/auth/fitness.location.read'
-    ].join(' ');
-
-    let tokenClient = null;
-    let accessToken = localStorage.getItem('google_access_token');
-    let autoRefreshTimer = null;
-
-    const btnLogin = document.getElementById('btn-login');
-    const btnLoginHero = document.getElementById('btn-login-hero');
-    const btnLogout = document.getElementById('btn-logout');
-    const loginBanner = document.getElementById('login-banner');
-    const dashboard = document.getElementById('dashboard');
-    const lastUpdated = document.getElementById('last-updated');
-
-    function initClient() {
-      if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID,
-          scope: SCOPES,
-          callback: (resp) => {
-            if (resp.error) {
-              console.error('Erro na autenticação:', resp);
-              return;
-            }
-            if (resp.access_token) {
-              accessToken = resp.access_token;
-              localStorage.setItem('google_access_token', accessToken);
-              showDashboard();
-              fetchAllData();
-              startAutoRefresh();
-            }
-          }
-        });
-        return true;
-      }
-      return false;
-    }
-
-    function handleAuth() {
-      // Se ainda não estava inicializado, tenta inicializar no momento do clique
-      if (!tokenClient) {
-        initClient();
-      }
-
-      if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      } else {
-        alert('A carregar serviços da Google... Por favor, aguarde 2 segundos e tente novamente.');
-      }
-    }
-
-    btnLogin.onclick = handleAuth;
-    btnLoginHero.onclick = handleAuth;
-
-    btnLogout.onclick = () => {
-      stopAutoRefresh();
-      localStorage.removeItem('google_access_token');
-      location.reload();
-    };
-
-    window.onload = () => {
-      // Tenta inicializar ou aguarda o script do Google estar pronto
-      const checkGoogleInterval = setInterval(() => {
-        if (initClient()) {
-          clearInterval(checkGoogleInterval);
-        }
-      }, 300);
-
-      if (accessToken) {
-        showDashboard();
-        fetchAllData();
-        startAutoRefresh();
-      }
-    };
-
-    function showDashboard() {
-      loginBanner.classList.add('hidden');
-      dashboard.classList.remove('hidden');
-      btnLogin.classList.add('hidden');
-      btnLogout.classList.remove('hidden');
-      lastUpdated.classList.remove('hidden');
-    }
-
-    function startAutoRefresh() {
-      stopAutoRefresh();
-      autoRefreshTimer = setInterval(() => {
-        fetchAllData();
-      }, 10 * 60 * 1000);
-    }
-
-    function stopAutoRefresh() {
-      if (autoRefreshTimer) {
-        clearInterval(autoRefreshTimer);
-        autoRefreshTimer = null;
-      }
-    }
-
-    async function fetchAllData() {
-      await Promise.all([fetchDailyMetrics(), fetchSleepData()]);
-      const now = new Date();
-      lastUpdated.innerText = `Atualizado às ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-
-    async function fetchDailyMetrics() {
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const endOfDay = now.getTime();
-
-      try {
-        const res = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            aggregateBy: [
-              { dataTypeName: 'com.google.step_count.delta' },
-              { dataTypeName: 'com.google.calories.expended' },
-              { dataTypeName: 'com.google.heart_rate.bpm' },
-              { dataTypeName: 'com.google.distance.delta' },
-              { dataTypeName: 'com.google.active_minutes' }
-            ],
-            bucketByTime: { durationMillis: 86400000 },
-            startTimeMillis: startOfDay,
-            endTimeMillis: endOfDay
-          })
-        });
-
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem('google_access_token');
-          stopAutoRefresh();
-          location.reload();
-          return;
-        }
-
-        const data = await res.json();
-        
-        if (data.bucket && data.bucket[0]) {
-          const ds = data.bucket[0].dataset;
-
-          let steps = 0;
-          if (ds[0].point.length > 0) {
-            steps = ds[0].point.reduce((acc, p) => acc + (p.value[0].intVal || 0), 0);
-          }
-          document.getElementById('metric-steps').innerText = steps.toLocaleString('pt-PT');
-          document.getElementById('metric-steps-sub').innerText = `${Math.round((steps / 10000) * 100)}% da meta diária`;
-
-          let cals = 0;
-          if (ds[1].point.length > 0) {
-            cals = ds[1].point.reduce((acc, p) => acc + (p.value[0].fpVal || 0), 0);
-          }
-          document.getElementById('metric-calories').innerText = `${Math.round(cals)} kcal`;
-
-          if (ds[2].point.length > 0) {
-            const lastBpm = ds[2].point[ds[2].point.length - 1].value[0].fpVal;
-            document.getElementById('metric-heart').innerText = `${Math.round(lastBpm)} bpm`;
-          }
-
-          let meters = 0;
-          if (ds[3].point.length > 0) {
-            meters = ds[3].point.reduce((acc, p) => acc + (p.value[0].fpVal || 0), 0);
-          }
-          document.getElementById('metric-distance').innerText = `${(meters / 1000).toFixed(2)} km`;
-
-          let activeMins = 0;
-          if (ds[4].point.length > 0) {
-            activeMins = ds[4].point.reduce((acc, p) => acc + (p.value[0].intVal || 0), 0);
-          }
-          document.getElementById('metric-active-time').innerText = `${activeMins} min`;
-        }
-      } catch (err) {
-        console.error('Erro ao recolher métricas diárias:', err);
-      }
-    }
-
-    async function fetchSleepData() {
-      const now = new Date();
-      const past36h = new Date(now.getTime() - (36 * 60 * 60 * 1000)).toISOString();
-      const nowIso = now.toISOString();
-
-      try {
-        const res = await fetch(`https://www.googleapis.com/fitness/v1/users/me/sessions?startTime=${past36h}&endTime=${nowIso}&activityType=72`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-
-        if (data.session && data.session.length > 0) {
-          const sleep = data.session[data.session.length - 1];
-          const startMs = parseInt(sleep.startTimeMillis);
-          const endMs = parseInt(sleep.endTimeMillis);
-          const totalMin = Math.floor((endMs - startMs) / 60000);
-
-          document.getElementById('metric-sleep').innerText = `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
-
-          const dStart = new Date(startMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const dEnd
+    const SCOPES
