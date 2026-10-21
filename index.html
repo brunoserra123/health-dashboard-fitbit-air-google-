@@ -583,6 +583,8 @@
     function initBattery() {
       if ('getBattery' in navigator) {
         navigator.getBattery().then(battery => {
+          function update() {
+            const level = Math.round(battery.level * 100);
             const el = document.getElementById('metric-battery');
             const sub = document.getElementById('metric-battery-sub');
             if (el) {
