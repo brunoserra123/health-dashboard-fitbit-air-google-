@@ -243,7 +243,21 @@
       <div class="card-footer">Atividade física hoje</div>
     </div>
 
-
+    <!-- Bateria do Relógio -->
+    <div class="card" id="card-battery" style="cursor: pointer;" title="Clique para alterar a porcentagem da bateria">
+      <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>Bateria do Relógio</span>
+        <span id="battery-icon" style="font-size: 1.25rem;">🔋</span>
+      </div>
+      <div class="card-value" id="metric-battery" style="color: #04d361;">85%</div>
+      <div style="background: #323238; border-radius: 4px; height: 6px; width: 100%; overflow: hidden; margin-top: 4px;">
+        <div id="battery-bar" style="background: #04d361; height: 100%; width: 85%; border-radius: 4px; transition: width 0.3s ease;"></div>
+      </div>
+      <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <span id="battery-status-text">No braço • Toque p/ alterar</span>
+        <button id="btn-toggle-charging" type="button" style="background: #2a2a30; border: 1px solid var(--border-color); color: #fff; border-radius: 4px; padding: 2px 7px; font-size: 0.75rem; cursor: pointer;">⚡</button>
+      </div>
+    </div>
 
     <!-- Detalhamento Completo do Sono -->
     <div class="card card-large">
@@ -379,6 +393,8 @@
     });
 
     window.addEventListener('DOMContentLoaded', () => {
+      initBatteryUI();
+
       if (window.location.protocol === 'file:') {
         const fileWarn = document.getElementById('file-protocol-warning');
         if (fileWarn) fileWarn.classList.remove('hidden');
@@ -569,7 +585,64 @@
         console.error('Estágios de sono indisponíveis:', e);
       }
     }
+    // Gerenciamento visual e interativo da Bateria do Relógio
+    function initBatteryUI() {
+      let currentLevel = parseInt(localStorage.getItem('watch_battery_level') || '85');
+      let isCharging = localStorage.getItem('watch_charging') === 'true';
 
+      function updateUI() {
+        const valEl = document.getElementById('metric-battery');
+        const barEl = document.getElementById('battery-bar');
+        const iconEl = document.getElementById('battery-icon');
+        const textEl = document.getElementById('battery-status-text');
+
+        if (valEl) {
+          valEl.innerText = `${currentLevel}%` + (isCharging ? ' ⚡' : '');
+          let color = '#04d361';
+          if (currentLevel <= 20) color = '#f75a68';
+          else if (currentLevel <= 40) color = '#ffaa00';
+          valEl.style.color = color;
+          if (barEl) {
+            barEl.style.width = `${currentLevel}%`;
+            barEl.style.background = color;
+          }
+        }
+        if (iconEl) {
+          iconEl.innerText = isCharging ? '⚡' : (currentLevel <= 20 ? '🪫' : '🔋');
+        }
+        if (textEl) {
+          textEl.innerText = isCharging ? 'Carregando ⚡ • Toque p/ alterar' : 'No braço • Toque p/ alterar';
+        }
+      }
+
+      updateUI();
+
+      const card = document.getElementById('card-battery');
+      if (card) {
+        card.addEventListener('click', (e) => {
+          if (e.target && e.target.id === 'btn-toggle-charging') return;
+          const novo = prompt('Qual a porcentagem de bateria no visor do relógio agora? (0 a 100):', currentLevel);
+          if (novo !== null) {
+            const parsed = parseInt(novo);
+            if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+              currentLevel = parsed;
+              localStorage.setItem('watch_battery_level', currentLevel);
+              updateUI();
+            }
+          }
+        });
+      }
+
+      const btnCharge = document.getElementById('btn-toggle-charging');
+      if (btnCharge) {
+        btnCharge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          isCharging = !isCharging;
+          localStorage.setItem('watch_charging', isCharging);
+          updateUI();
+        });
+      }
+    }
 
   </script>
 </body>
