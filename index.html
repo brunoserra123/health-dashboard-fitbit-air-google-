@@ -173,6 +173,10 @@
   <header>
     <h1>Painel de Saúde</h1>
     <div class="header-actions">
+      <div id="header-battery-pill" style="display: flex; align-items: center; gap: 6px; background: #202024; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border-color); font-size: 0.9rem; font-weight: 600;">
+        <span id="header-battery-icon">🔋</span>
+        <span id="header-battery-val" style="color: #04d361;">85%</span>
+      </div>
       <span id="last-updated" class="status-text hidden">A aguardar sincronização...</span>
       <button id="btn-login" class="btn">Conectar Conta Google</button>
       <button id="btn-logout" class="btn btn-secondary hidden">Sair</button>
@@ -207,7 +211,7 @@
     </div>
   </section>
 
-  <main id="dashboard" class="hidden">
+  <main id="dashboard">
     <!-- Passos -->
     <div class="card">
       <div class="card-title">Passos Hoje</div>
@@ -612,6 +616,16 @@
         }
         if (textEl) {
           textEl.innerText = isCharging ? 'Carregando ⚡ • Toque p/ alterar' : 'No braço • Toque p/ alterar';
+        }
+
+        const headerVal = document.getElementById('header-battery-val');
+        const headerIcon = document.getElementById('header-battery-icon');
+        if (headerVal) {
+          headerVal.innerText = `${currentLevel}%` + (isCharging ? ' ⚡' : '');
+          headerVal.style.color = color;
+        }
+        if (headerIcon) {
+          headerIcon.innerText = isCharging ? '⚡' : (currentLevel <= 20 ? '🪫' : '🔋');
         }
       }
 
