@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel de Atividades e Métricas Pessoais</title>
+  <title>Painel de Atividades</title>
   <link href="./icon.jpg" rel="icon" type="image/jpeg">
   <style>
     :root {
@@ -216,4 +216,20 @@
           throw new Error(`Erro ${resposta.status}`);
         }
 
-        const dados =
+        const dados = await resposta.json();
+        
+        let passos = 0;
+        let calorias = 0;
+        let distancia = 0;
+        let minutosAtivos = 0;
+        let ritmoCardiaco = "--";
+
+        if (dados.bucket && dados.bucket[0] && dados.bucket[0].dataset) {
+          dados.bucket[0].dataset.forEach(ds => {
+            const streamId = ds.dataSourceId || "";
+            ds.point.forEach(pt => {
+              if (pt.value && pt.value[0]) {
+                const val = pt.value[0].intVal || pt.value[0].fpVal || 0;
+                if (streamId.includes("step_count")) passos += val;
+                if (streamId.includes("calories")) calorias += Math.round(val);
+                if (
