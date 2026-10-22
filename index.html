@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel de Atividades</title>
   <link href="./icon.jpg" rel="icon" type="image/jpeg">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -13,8 +14,6 @@
       --text-muted: #94a3b8;
       --accent: #38bdf8;
       --accent-green: #4ade80;
-      --accent-orange: #fb923c;
-      --accent-purple: #c084fc;
       --card-border: rgba(255, 255, 255, 0.08);
     }
 
@@ -58,6 +57,22 @@
       gap: 12px;
       font-size: 0.875rem;
       color: var(--text-muted);
+    }
+
+    .btn-sync {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-sync:hover {
+      opacity: 0.85;
     }
 
     .battery-pill {
@@ -125,11 +140,12 @@
   <header>
     <h1>Painel de Atividades</h1>
     <div class="status-bar">
+      <button class="btn-sync" onclick="iniciarConexao()">Sincronizar</button>
       <div class="battery-pill">
         <span>🔋</span>
         <span id="headerBattery">85%</span>
       </div>
-      <span id="syncStatus">A carregar métricas...</span>
+      <span id="syncStatus">Clique em Sincronizar</span>
     </div>
   </header>
 
@@ -178,9 +194,44 @@
   </main>
 
   <script>
-    const _CRED = "eWEyOS5hMEFYMDdDbXNsY3dqR0FXUTBjQWxYTXAybUF1ZVl0WlBPTnllRU9icElPTjJyeDcwdXRqWTJtb19VV2c3bTVtNGpHMkNlWHV5QzU1UmlXMWRqNC0zcDlpeHhfOEExSTVmVm05VGJsLUJ2UHlVMGVfSWxLbzZNN3VTWTRJcGVvQ1dMMlJQY041aWRJNDZ0UG13U1lBc3ZwLW9JZE8wSTdhTkJLZF9WZklrREhpNVNuRHhtYmFlaTFJeFk2b2s2Nl82OHh2dlZMbWdhQ2dZS0FWQVNBUlVTRlFIR1gyTWlFYkE2RVBYNWU3Zmducl9GR0JGVXhBMDIwNg==";
+    let tokenClient;
 
-    async function carregarMetricas(chave) {
+    // Se tiver seu Client ID do Google Cloud Console, cole aqui.
+    // Caso não tenha configurado ainda, o botão de sincronizar solicitará o token atualizado sem travar a tela.
+    const GOOGLE_CLIENT_ID = ""; 
+
+    function iniciarConexao() {
+      const tokenSalvo = localStorage.getItem('fitbit_access_token');
+      
+      // Se não temos Google Client ID configurado no app, solicita via popup discreto
+      if (!GOOGLE_CLIENT_ID) {
+        const novoToken = prompt("Cole o novo Access Token gerado no OAuth Playground:", tokenSalvo || "");
+        if (novoToken && novoToken.trim() !== "") {
+          localStorage.setItem('fitbit_access_token', novoToken.trim());
+          carregarMetricas(novoToken.trim());
+        }
+        return;
+      }
+
+      // Fluxo OAuth oficial caso use Client ID
+      if (window.google && window.google.accounts) {
+        if (!tokenClient) {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.sleep.read',
+            callback: (resp) => {
+              if (resp.access_token) {
+                localStorage.setItem('fitbit_access_token', resp.access_token);
+                carregarMetricas(resp.access_token);
+              }
+            },
+          });
+        }
+        tokenClient.requestAccessToken();
+      }
+    }
+
+    async function carregarMetricas(token) {
       const status = document.getElementById('syncStatus');
       if (status) status.innerText = "A atualizar métricas...";
 
@@ -206,14 +257,18 @@
         const resposta = await fetch(endpoint, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${chave}`,
+            "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify(corpoRequisicao)
         });
 
+        if (resposta.status === 401) {
+          throw new Error("Token expirado (401). Clique em Sincronizar para renovar.");
+        }
+
         if (!resposta.ok) {
-          throw new Error(`Erro ${resposta.status}`);
+          throw new Error(`Erro na API (${resposta.status})`);
         }
 
         const dados = await resposta.json();
@@ -232,4 +287,43 @@
                 const val = pt.value[0].intVal || pt.value[0].fpVal || 0;
                 if (streamId.includes("step_count")) passos += val;
                 if (streamId.includes("calories")) calorias += Math.round(val);
-                if (
+                if (streamId.includes("distance")) distancia += val;
+                if (streamId.includes("active_minutes")) minutosAtivos += Math.round(val);
+                if (streamId.includes("heart_rate")) ritmoCardiaco = Math.round(val);
+              }
+            });
+          });
+        }
+
+        document.getElementById('valSteps').innerText = Number(passos).toLocaleString('pt-BR');
+        document.getElementById('valCalories').innerText = Number(calorias).toLocaleString('pt-BR') + " kcal";
+        document.getElementById('valDistance').innerText = (distancia / 1000).toFixed(2) + " km";
+        document.getElementById('valActiveMinutes').innerText = activeMinutesFormat(minutosAtivos);
+        if (ritmoCardiaco !== "--") {
+          document.getElementById('valHeart').innerText = ritmoCardiaco + " bpm";
+        }
+
+        if (status) status.innerText = "Atualizado às " + new Date().toLocaleTimeString();
+
+      } catch (err) {
+        console.error(err);
+        if (status) status.innerText = err.message;
+      }
+    }
+
+    function activeMinutesFormat(mins) {
+      return mins + " min";
+    }
+
+    window.onload = function() {
+      const tokenSalvo = localStorage.getItem('fitbit_access_token');
+      if (tokenSalvo) {
+        carregarMetricas(tokenSalvo);
+      } else {
+        const status = document.getElementById('syncStatus');
+        if (status) status.innerText = "Clique em Sincronizar para iniciar";
+      }
+    };
+  </script>
+</body>
+</html>
